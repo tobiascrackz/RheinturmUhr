@@ -96,7 +96,7 @@ bool checkForUpdate() {
   WiFiClientSecure client;
   client.setInsecure(); // insecure HTTPS für GitHub Pages
   HTTPClient http;
-  http.begin(client, fwVersionURL); // fix für HTTPS
+  http.begin(client, fwVersionURL);
   int httpCode = http.GET();
   if (httpCode == 200) {
     String newVersion = http.getString();
@@ -114,7 +114,7 @@ bool performOTA() {
   if (WiFi.status() != WL_CONNECTED) return false;
 
   WiFiClientSecure client;
-  client.setInsecure(); // insecure HTTPS
+  client.setInsecure();
   t_httpUpdate_return ret = ESPhttpUpdate.update(client, fwBinURL, currentVersion);
 
   switch (ret) {
@@ -259,6 +259,42 @@ updateStatus();
   server.begin();
 }
 
+// -------------------- AP Setup für WLAN-Konfiguration --------------------
+void setupAP() {
+  WiFi.mode(WIFI_AP);
+  IPAddress local_IP(192, 168, 4, 1);
+  IPAddress gateway(192, 168, 4, 1);
+  IPAddress subnet(255, 255, 255, 0);
+  WiFi.softAPConfig(local_IP, gateway, subnet);
+  WiFi.softAP("RheinturmUhrSetup", "12345678");
+
+  Serial.println("AP gestartet: ESP8266-UhrSetup IP: " + WiFi.softAPIP().toString());
+
+  server.on("/", HTTP_GET, []() {
+    String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>RheinturmUhr Setup</title></head><body style='font-family:Arial;color:white;background:black;'>";
+    html += "<h1>WLAN Setup</h1>";
+    html += "<form method='POST' action='/save'>";
+    html += "SSID: <input name='ssid'><br>";
+    html += "Passwort: <input name='pass' type='password'><br>";
+    html += "<input type='submit' value='Speichern'></form>";
+    html += "</body></html>";
+    server.send(200, "text/html", html);
+  });
+
+  server.on("/save", HTTP_POST, []() {
+    if (server.hasArg("ssid") && server.hasArg("pass")) {
+      saveWiFi(server.arg("ssid").c_str(), server.arg("pass").c_str());
+      server.send(200, "text/html", "Gespeichert! Neustart...");
+      delay(2000);
+      ESP.restart();
+    } else {
+      server.send(400, "text/html", "Fehlende Daten!");
+    }
+  });
+
+  server.begin();
+}
+
 // -------------------- OTA Setup --------------------
 void OTA_setup() {
   ArduinoOTA.setHostname("RheinturmUhr");
@@ -284,10 +320,12 @@ void setup() {
       setupWebServer();
       OTA_setup();
     } else {
-      Serial.println("WLAN-Verbindung fehlgeschlagen.");
+      Serial.println("WLAN-Verbindung fehlgeschlagen. AP wird gestartet...");
+      setupAP();
     }
   } else {
-    Serial.println("Keine WLAN-Daten gefunden.");
+    Serial.println("Keine WLAN-Daten gefunden. AP wird gestartet...");
+    setupAP();
   }
 }
 
