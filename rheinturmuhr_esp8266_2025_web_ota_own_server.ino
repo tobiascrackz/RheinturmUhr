@@ -31,7 +31,7 @@ unsigned long lastSync = 0;
 // -------------------- OTA Update --------------------
 const char* fwVersionURL = "https://tobiascrackz.github.io/RheinturmUhr/version_8266.txt";
 const char* fwBinURL     = "https://tobiascrackz.github.io/RheinturmUhr/firmware_8266.bin";
-String currentVersion = "v1.0.1";
+String currentVersion = "v1.0.2";
 unsigned long lastUpdateCheck = 0;
 bool firstUpdateCheckDone = false;
 
@@ -114,7 +114,7 @@ bool performOTA() {
   if (WiFi.status() != WL_CONNECTED) return false;
 
   WiFiClientSecure client;
-  client.setInsecure();
+  client.setInsecure(); // insecure HTTPS
   t_httpUpdate_return ret = ESPhttpUpdate.update(client, fwBinURL, currentVersion);
 
   switch (ret) {
@@ -195,6 +195,11 @@ void setupWebServer() {
     html += "<p>Aktuelle Uhrzeit: <span id='currentTime'>--:--:--</span></p>";
     html += "<p>Startzeit: <span id='startTimeDisplay'>--:--</span></p>";
     html += "<p>Stopzeit: <span id='stopTimeDisplay'>--:--</span></p>";
+    html += "<form id='timeForm'>";
+    html += "Start <input type='time' name='start'>";
+    html += "Stop <input type='time' name='stop'>";
+    html += "<input type='submit' value='Speichern'>";
+    html += "</form>";
     html += "<input type='color' id='watchColor'>";
     html += "<input type='color' id='trennColor'>";
     html += R"rawliteral(
@@ -215,6 +220,12 @@ fetch('/setWatch?r='+parseInt(c.substr(1,2),16)+'&g='+parseInt(c.substr(3,2),16)
 document.getElementById('trennColor').addEventListener('input',()=>{
 const c=document.getElementById('trennColor').value;
 fetch('/setTrenn?r='+parseInt(c.substr(1,2),16)+'&g='+parseInt(c.substr(3,2),16)+'&b='+parseInt(c.substr(5,2),16));
+});
+document.getElementById('timeForm').addEventListener('submit',(e)=>{
+e.preventDefault();
+const start=document.querySelector('input[name="start"]').value.split(':');
+const stop=document.querySelector('input[name="stop"]').value.split(':');
+fetch('/setTimes?start='+(parseInt(start[0])*3600+parseInt(start[1])*60)+'&stop='+(parseInt(stop[0])*3600+parseInt(stop[1])*60));
 });
 setInterval(updateStatus,1000);
 updateStatus();
@@ -254,6 +265,17 @@ updateStatus();
     trennb = server.arg("b").toInt();
     saveColors();
     server.send(200,"text/plain","OK");
+  });
+
+  server.on("/setTimes", HTTP_GET, [](){
+    if (server.hasArg("start") && server.hasArg("stop")) {
+      start_time = server.arg("start").toInt();
+      stop_time = server.arg("stop").toInt();
+      saveTimes(start_time, stop_time);
+      server.send(200,"text/plain","OK");
+    } else {
+      server.send(400,"text/plain","Fehler: keine Zeiten");
+    }
   });
 
   server.begin();
