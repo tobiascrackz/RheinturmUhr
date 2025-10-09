@@ -4,7 +4,7 @@ flash_ota_universal.py
 Plattform: Windows / macOS / Linux
 Hinweis: Fertig für PyInstaller One-File-Exe.
 firmware.bin und espota.py werden aus der Exe geladen.
-Kein Internet notwendig.
+Kein Passwort, kein externes Python nötig.
 """
 
 import sys
@@ -24,7 +24,7 @@ def ensure_python3():
     if sys.version_info.major < 3:
         print("Fehler: Python 3 wird benötigt.")
         sys.exit(1)
-    print(f"Nutze Python {sys.version_info.major}.{sys.version_info.minor} ({sys.executable})")
+    print(f"Nutze Python {sys.version_info.major}.{sys.version_info.minor} (eingebettet)")
 
 def main():
     ensure_python3()
@@ -39,17 +39,13 @@ def main():
         print(f"Fehler: '{ESPOTA_LOCAL}' nicht gefunden im Ordner {os.getcwd()}.")
         sys.exit(1)
 
-    print()
     ip = input("Gib die IP-Adresse des ESP32 ein (z.B. 192.168.1.50): ").strip()
     if not ip:
         print("Keine IP eingegeben. Abbruch.")
         sys.exit(1)
-    auth = input("Gib das OTA-Passwort ein (leer lassen, falls keins): ").strip() or None
 
-    # Bereite Argumente für espota.py
+    # Bereite Argumente für espota.py ohne Passwort
     sys.argv = [espota_path, "--ip", ip, "--file", firmware_path]
-    if auth:
-        sys.argv += ["--auth", auth]
 
     print("\nStarte OTA-Upload...")
     try:
