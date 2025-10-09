@@ -2,18 +2,15 @@
 """
 flash_ota_universal.py
 Plattform: Windows / macOS / Linux
-Voraussetzung: Python 3.x (System)
-Hinweis: Für die Exe wird kein venv benötigt.
-Lege firmware.bin in denselben Ordner wie das Skript bzw. bind sie via PyInstaller ein.
+Hinweis: Fertig für PyInstaller One-File-Exe.
+firmware.bin und espota.py werden aus der Exe geladen.
+Kein Internet notwendig.
 """
 
 import sys
 import os
-import platform
-import subprocess
-import urllib.request
+import runpy
 
-ESPOTA_URL = "https://raw.githubusercontent.com/espressif/arduino-esp32/master/tools/espota.py"
 ESPOTA_LOCAL = "espota.py"
 FIRMWARE_FILE = "firmware.bin"
 
@@ -29,32 +26,6 @@ def ensure_python3():
         sys.exit(1)
     print(f"Nutze Python {sys.version_info.major}.{sys.version_info.minor} ({sys.executable})")
 
-def download_espota(local_path=ESPOTA_LOCAL):
-    if os.path.exists(local_path):
-        print(f"{local_path} bereits vorhanden.")
-        return local_path
-    print(f"Lade espota.py von {ESPOTA_URL} ...")
-    try:
-        urllib.request.urlretrieve(ESPOTA_URL, local_path)
-        print(f"Gespeichert als {local_path}")
-    except Exception as e:
-        print("Fehler beim Herunterladen von espota.py:", e)
-        sys.exit(1)
-    return local_path
-
-def run_espota(python_exe, espota_path, firmware_path, ip, port="3232", auth=None):
-    cmd = [python_exe, espota_path, "--ip", ip, "--port", port, "--file", firmware_path]
-    if auth:
-        cmd += ["--auth", auth]
-    print("Starte OTA-Upload mit Befehl:")
-    print(" ".join(cmd))
-    try:
-        subprocess.run(cmd, check=True)
-        print("OTA-Upload erfolgreich.")
-    except subprocess.CalledProcessError as e:
-        print("OTA-Upload fehlgeschlagen:", e)
-        sys.exit(1)
-
 def main():
     ensure_python3()
 
@@ -65,9 +36,8 @@ def main():
 
     espota_path = get_resource_path(ESPOTA_LOCAL)
     if not os.path.exists(espota_path):
-        download_espota(espota_path)
-
-    python_exe = sys.executable  # Exe benutzt eingebettetes Python
+        print(f"Fehler: '{ESPOTA_LOCAL}' nicht gefunden im Ordner {os.getcwd()}.")
+        sys.exit(1)
 
     print()
     ip = input("Gib die IP-Adresse des ESP32 ein (z.B. 192.168.1.50): ").strip()
@@ -76,7 +46,18 @@ def main():
         sys.exit(1)
     auth = input("Gib das OTA-Passwort ein (leer lassen, falls keins): ").strip() or None
 
-    run_espota(python_exe, espota_path, firmware_path, ip, auth=auth)
+    # Bereite Argumente für espota.py
+    sys.argv = [espota_path, "--ip", ip, "--file", firmware_path]
+    if auth:
+        sys.argv += ["--auth", auth]
+
+    print("\nStarte OTA-Upload...")
+    try:
+        runpy.run_path(espota_path, run_name="__main__")
+        print("OTA-Upload abgeschlossen.")
+    except Exception as e:
+        print("OTA-Upload fehlgeschlagen:", e)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
